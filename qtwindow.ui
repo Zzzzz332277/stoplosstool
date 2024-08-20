@@ -17,7 +17,7 @@
    <widget class="QPushButton" name="pushButtonStart">
     <property name="geometry">
      <rect>
-      <x>1060</x>
+      <x>1330</x>
       <y>300</y>
       <width>75</width>
       <height>23</height>
@@ -30,7 +30,7 @@
    <widget class="QTextBrowser" name="textBrowser">
     <property name="geometry">
      <rect>
-      <x>1060</x>
+      <x>1330</x>
       <y>50</y>
       <width>311</width>
       <height>241</height>
@@ -42,18 +42,18 @@
      <rect>
       <x>10</x>
       <y>50</y>
-      <width>1001</width>
+      <width>1241</width>
       <height>241</height>
      </rect>
     </property>
     <property name="contextMenuPolicy">
      <enum>Qt::CustomContextMenu</enum>
     </property>
-    <row>
+    <column>
      <property name="text">
-      <string>1</string>
+      <string>ID</string>
      </property>
-    </row>
+    </column>
     <column>
      <property name="text">
       <string>代码</string>
@@ -104,6 +104,11 @@
       <string>执行时间</string>
      </property>
     </column>
+    <column>
+     <property name="text">
+      <string>富途ID</string>
+     </property>
+    </column>
    </widget>
    <widget class="QTableWidget" name="tableWidget_hold">
     <property name="geometry">
@@ -136,6 +141,11 @@
     </column>
     <column>
      <property name="text">
+      <string>订单方向</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
       <string>止损订单</string>
      </property>
     </column>
@@ -163,7 +173,7 @@
    <widget class="QGroupBox" name="groupBox">
     <property name="geometry">
      <rect>
-      <x>1060</x>
+      <x>1330</x>
       <y>370</y>
       <width>411</width>
       <height>391</height>
@@ -353,7 +363,7 @@
    <widget class="QLabel" name="label_7">
     <property name="geometry">
      <rect>
-      <x>1070</x>
+      <x>1340</x>
       <y>340</y>
       <width>91</width>
       <height>16</height>
@@ -366,7 +376,7 @@
    <widget class="QPushButton" name="pushButtonStop">
     <property name="geometry">
      <rect>
-      <x>1140</x>
+      <x>1410</x>
       <y>300</y>
       <width>75</width>
       <height>23</height>

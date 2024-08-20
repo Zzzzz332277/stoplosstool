@@ -25,7 +25,7 @@ DataBaseAddr = {'hostNAME': '127.0.0.1',
 
 #####################################数据库的连接######################################
 engine = sqlalchemy.create_engine(f"mysql+pymysql://{DataBaseAddr['username']}:{DataBaseAddr['password']}@localhost:3306/{DataBaseAddr['database']}")
-con = engine.connect()
+#con = engine.connect()
 
 
 
@@ -58,12 +58,13 @@ class OdersList(Base):
     SETDATE=Column(DateTime)
     #执行动作时间
     OPERATIONDATE=Column(DateTime)
-    ORDERID = Column(String(60),index=True)
-
+    #futu的订单ID
+    FUTUORDERID = Column(String(60),index=True)
+    '''
     __table_args__ = (
-        UniqueConstraint('CODE', 'ORDERID', name='CODE_ORDERID'),  # code和date唯一
+        UniqueConstraint('CODE', 'FUTUORDERID', name='CODE_FUTUORDERID'),  # code和date唯一
     )
-
+    '''
 ####################################创建表格###############################################################
 Base.metadata.create_all(engine)
 #######################################################################################################################

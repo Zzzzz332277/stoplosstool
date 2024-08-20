@@ -91,24 +91,6 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
     #def StartAnalyze(self):
     #    zmain.ZtradeUS()
 
-    def SetOrderMainWindow(self):
-        code=self.textEdit_code.toPlainText()
-        qty=float(self.textEdit_qty.toPlainText())
-
-        #根据下拉菜单判断方向
-        side=self.DirectionSelction.currentText()
-        if side== 'BUY':
-            trd_side=TrdSide.BUY
-        else:
-            trd_side=TrdSide.SELL
-
-        aux_price=float(self.textEdit_auxprice.toPlainText())
-        price=float(self.textEdit_bidprice.toPlainText())
-        order_type=OrderType.STOP_LIMIT
-        #ordertype写死
-        print('执行下单')
-        stp=stoploss.StopLossTool()
-        stp.SetOrderStopLoss(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
 
 
 
@@ -178,17 +160,45 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         self.stp=stoploss.StopLossTool()
         self.stp.InitProgram()
 
-        self.UpdateOrderTable(self.stp.orderListDataframe)
+        self.UpdateOrderTable()
         self.UpdateHoldTable()
-        self.SubscribeRealTimePrice(self.stp.holdStockList)
+        self.SubscribeRealTimePrice()
         #time.sleep(35)  # 设置脚本接收 OpenD 的推送持续时间为15秒
         #while 1 :
         #    pass
 
-    def UpdateOrderTable(self,orderListDF):
+    def SetOrderMainWindow(self):
+        code=self.textEdit_code.toPlainText()
+        qty=float(self.textEdit_qty.toPlainText())
+
+        #根据下拉菜单判断方向
+        side=self.DirectionSelction.currentText()
+        if side== 'BUY':
+            trd_side=TrdSide.BUY
+        else:
+            trd_side=TrdSide.SELL
+
+        aux_price=float(self.textEdit_auxprice.toPlainText())
+        price=float(self.textEdit_bidprice.toPlainText())
+        order_type=OrderType.STOP_LIMIT
+        #ordertype写死
+        print('执行下单')
+        self.stp.SetOrderStopLoss(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
+        self.RefreshProgram()
+
+
+    def RefreshProgram(self):
+        self.UpdateOrderTable()
+        self.UpdateHoldTable()
+
+    def UpdateOrderTable(self):
+        orderListDF=self.stp.orderListDataframe
         table=self.tableWidget_order
+        table.setRowCount(0)
+
         for i in range(0,orderListDF.shape[0]):
             #持仓信息
+            id=orderListDF['ID'].iloc[i]
             code=orderListDF['CODE'].iloc[i]
             name=orderListDF['NAME'].iloc[i]
             quanty=orderListDF['QUANTITY'].iloc[i]
@@ -199,26 +209,28 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             auxPrice=orderListDF['AUXPRICE'].iloc[i]
             setDate=orderListDF['SETDATE'].iloc[i]
             operationDate=orderListDF['OPERATIONDATE'].iloc[i]
-
+            futuOrderID=orderListDF['FUTUORDERID'].iloc[i]
 
             row_count = table.rowCount()  # 返回当前行数(尾部)
             table.insertRow(row_count)  # 尾部插入一行
-            table.setItem(row_count, 0, QtWidgets.QTableWidgetItem(str(code)))
-            table.setItem(row_count , 1, QtWidgets.QTableWidgetItem(str(name)))
-            table.setItem(row_count, 2, QtWidgets.QTableWidgetItem(str(direction)))
-            table.setItem(row_count, 3, QtWidgets.QTableWidgetItem(str(type)))
-            table.setItem(row_count, 4, QtWidgets.QTableWidgetItem(str(status)))
-            table.setItem(row_count, 5, QtWidgets.QTableWidgetItem(str(quanty)))
-            table.setItem(row_count, 6, QtWidgets.QTableWidgetItem(str(bidPrice)))
-            table.setItem(row_count, 7, QtWidgets.QTableWidgetItem(str(auxPrice)))
-            table.setItem(row_count, 8, QtWidgets.QTableWidgetItem(str(setDate)))
-            table.setItem(row_count, 9, QtWidgets.QTableWidgetItem(str(operationDate)))
+            table.setItem(row_count, 0, QtWidgets.QTableWidgetItem(str(id)))
+            table.setItem(row_count, 1, QtWidgets.QTableWidgetItem(str(code)))
+            table.setItem(row_count , 2, QtWidgets.QTableWidgetItem(str(name)))
+            table.setItem(row_count, 3, QtWidgets.QTableWidgetItem(str(direction)))
+            table.setItem(row_count, 4, QtWidgets.QTableWidgetItem(str(type)))
+            table.setItem(row_count, 5, QtWidgets.QTableWidgetItem(str(status)))
+            table.setItem(row_count, 6, QtWidgets.QTableWidgetItem(str(quanty)))
+            table.setItem(row_count, 7, QtWidgets.QTableWidgetItem(str(bidPrice)))
+            table.setItem(row_count, 8, QtWidgets.QTableWidgetItem(str(auxPrice)))
+            table.setItem(row_count, 9, QtWidgets.QTableWidgetItem(str(setDate)))
+            table.setItem(row_count, 10, QtWidgets.QTableWidgetItem(str(operationDate)))
+            table.setItem(row_count, 11, QtWidgets.QTableWidgetItem(str(futuOrderID)))
 
     def UpdateHoldTable(self):
         holdStockList=self.stp.holdStockList
-        holdListDF=self.stp.holdStockDataframe
-        stateDF=self.stp.StateDataframe
         table=self.tableWidget_hold
+        table.setRowCount(0)
+
         for i in range(0,len(holdStockList)):
             holdStock=holdStockList[i]
 
@@ -226,6 +238,7 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             code=holdStock.code
             name=holdStock.name
             quanty=holdStock.qty
+            orderDirection=holdStock.orderDirection
             hasOrder=holdStock.hasOrder
             direction=holdStock.stopLossDirection
             stopLossPrice=holdStock.stopLossPrice
@@ -235,16 +248,22 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             table.setItem(row_count , 0, QtWidgets.QTableWidgetItem(str(code)))
             table.setItem(row_count , 1, QtWidgets.QTableWidgetItem(str(name)))
             table.setItem(row_count , 2, QtWidgets.QTableWidgetItem(str(quanty)))
-            table.setItem(row_count , 4, QtWidgets.QTableWidgetItem(str(hasOrder)))
-            table.setItem(row_count , 5, QtWidgets.QTableWidgetItem(str(direction)))
-            table.setItem(row_count , 6, QtWidgets.QTableWidgetItem(str(stopLossPrice)))
-            table.setItem(row_count , 7, QtWidgets.QTableWidgetItem(str(state)))
 
+            table.setItem(row_count , 4, QtWidgets.QTableWidgetItem(str(orderDirection)))
+            table.setItem(row_count , 5, QtWidgets.QTableWidgetItem(str(hasOrder)))
+            table.setItem(row_count , 6, QtWidgets.QTableWidgetItem(str(direction)))
+            table.setItem(row_count , 7, QtWidgets.QTableWidgetItem(str(stopLossPrice)))
+            table.setItem(row_count , 8, QtWidgets.QTableWidgetItem(str(state)))
+
+    def UpdatePrice(self,pos,price):
+        table = self.tableWidget_hold
+        table.setItem(pos, 3, QtWidgets.QTableWidgetItem(str(price)))
 
 
 
     #获取实时报价并显示
-    def SubscribeRealTimePrice(self,holdStockList):
+    def SubscribeRealTimePrice(self):
+        holdStockList=self.stp.holdStockList
         #获取订阅名单,从类列表里获取
         subscribeList=[]
         for i in range(0,len(holdStockList)):
@@ -268,16 +287,26 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         code= pushdata['code'].iloc[0]
         #找到在dataframe中对应位置
         pos=holdCodeList.index(code)
-        lastprice = pushdata['last_price'].iloc[0]
-        table.setItem(pos, 3, QtWidgets.QTableWidgetItem(str(lastprice)))
+        lastPrice = pushdata['last_price'].iloc[0]
+        #table.setItem(pos, 3, QtWidgets.QTableWidgetItem(str(lastPrice)))
+        self.UpdatePrice(pos,lastPrice)
 
-        '''
-        #更新数据并进行判断
-        stateDF=self.stp.StateDataframe
-        #是否有止损
-        if stateDF['HASORDER'].iloc[pos] == True:
-            if lastprice<
-        '''
+        #调用止损判断程序：
+        result=self.stp.StopLossProcess(pos,pushdata)
+        if result=='NeedRefresh':
+            self.RefreshProgram()
+
+    #根据富途回调函数推送修改订单状态
+    def RenewOrderState(self, orderID):
+
+        result = self.stp.RenewState(orderID)
+        if result == 'NeedRefresh':
+            self.RefreshProgram()
+
+    #设置订单执行状态回调函数
+    def SetOrderStateCB(self):
+        futuoder.trd_ctx.set_handler(futuoder.TradeOrderTest(self.RenewOrderState))
+
 
 if __name__ == "__main__":
     import sys

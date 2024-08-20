@@ -4,16 +4,27 @@ import chardet
 import futu as ft
 from futu import *
 
+#########################################################
+#参数设置，模拟与真实，交易账户：
+trd_env=TrdEnv.SIMULATE
+#trd_env=TrdEnv.REAL
+trdmarket=TrdMarket.HK
+########################################################
+
 # 实例化行情上下文对象
 quote_ctx = ft.OpenQuoteContext(host="127.0.0.1", port=11111)
 # 上下文控制
 quote_ctx.start()  # 开启异步数据接收
 quote_ctx.set_handler(ft.TickerHandlerBase())  # 设置用于异步处理数据的回调对象(可派生支持自定义)
 #处理数据并与富途进行通信的类
-trd_ctx = OpenSecTradeContext(filter_trdmarket=TrdMarket.US, host='127.0.0.1', port=11111, is_encrypt=None, security_firm=SecurityFirm.FUTUSECURITIES)
+trd_ctx = OpenSecTradeContext(filter_trdmarket=trdmarket, host='127.0.0.1', port=11111, is_encrypt=None, security_firm=SecurityFirm.FUTUSECURITIES)
 #解锁密码
 password_md5 = 'a4664cc82ff5767f5bb8cb31a1b39d9b'
 password='927301'
+
+
+
+
 
 ############测试自选股功能#####################
 '''
@@ -58,6 +69,23 @@ class StockQuoteTest(StockQuoteHandlerBase):
         print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
         return RET_OK, data
 
+class TradeOrderTest(TradeOrderHandlerBase):
+    def __init__(self,callbackfunc):
+        #声明回调函数，调用 更新显示
+        self.callbackfunc=callbackfunc
+    """ order update push"""
+    def on_recv_rsp(self, rsp_pb):
+        ret, content = super(TradeOrderTest, self).on_recv_rsp(rsp_pb)
+        if ret == RET_OK:
+            print("* TradeOrderTest content={}\n".format(content))
+            futuOrderID=content.order_id
+            self.callbackfunc(futuOrderID)
+
+        return ret, content
+
+
+
+
 class Zfutu():
     def __init__(self):
         #self.market=market
@@ -73,7 +101,8 @@ class Zfutu():
         '''
     #获取持仓
     def GetHoldStock(self):
-        ret, data = trd_ctx.position_list_query()
+        #指定交易环境
+        ret, data = trd_ctx.position_list_query(trd_env=trd_env)
         if ret == RET_OK:
             print(data)
             if data.shape[0] > 0:  # 如果持仓列表不为空
@@ -86,7 +115,7 @@ class Zfutu():
 
     #获取订单
     def GetOrderList(self):
-        ret, data = trd_ctx.order_list_query()
+        ret, data = trd_ctx.order_list_query(trd_env=trd_env)
         if ret == RET_OK:
             print(data)
             if data.shape[0] > 0:  # 如果订单列表不为空
@@ -106,8 +135,8 @@ class Zfutu():
         #trd_ctx.close()
 
     #下单,
-    def SetLimitOrder(self,code,price,qty,trd_side,order_type,aux_price):
-        ret, data = trd_ctx.place_order(price=price, qty=qty, code=code, trd_side=trd_side,order_type=order_type,aux_price=aux_price,trd_env=TrdEnv.REAL)
+    def SetLimitAuxOrder(self,code,price,qty,trd_side,order_type,aux_price):
+        ret, data = trd_ctx.place_order(price=price, qty=qty, code=code, trd_side=trd_side,order_type=order_type,aux_price=aux_price,trd_env=trd_env)
         if ret == RET_OK:
             print('限价单下单成功')
 
@@ -119,6 +148,21 @@ class Zfutu():
             return orderID[0]
         else:
             print('place_order error: ', data)
+
+    def SetLimitOrder(self, code, price, qty, trd_side, order_type):
+        ret, data = trd_ctx.place_order(price=price, qty=qty, code=code, trd_side=trd_side, order_type=order_type, trd_env=trd_env)
+        if ret == RET_OK:
+            print('限价单下单成功')
+
+            print(data)
+            print(data['order_id'][0])  # 获取下单的订单号
+            orderID = data['order_id'].values.tolist()
+            print(data['order_id'].values.tolist())  # 转为 list
+            # 返回list第一个
+            return 1
+        else:
+            print('place_order error: ', data)
+            return 0
 
         #trd_ctx.close()
     #取消订单
