@@ -9,6 +9,8 @@ from futu import *
 trd_env=TrdEnv.SIMULATE
 #trd_env=TrdEnv.REAL
 trdmarket=TrdMarket.HK
+#trdmarket=TrdMarket.US
+
 ########################################################
 
 # 实例化行情上下文对象
@@ -52,6 +54,7 @@ def CodeTransWind2FUTU_US(codelist):
         codelistNew.append(codeNew)
     return codelistNew
 
+#报价回调
 class StockQuoteTest(StockQuoteHandlerBase):
     def __init__(self,callbackfunc):
         #声明回调函数，调用 更新显示
@@ -69,17 +72,58 @@ class StockQuoteTest(StockQuoteHandlerBase):
         print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
         return RET_OK, data
 
+#分时回调
+class RTDataTest(RTDataHandlerBase):
+    def __init__(self,callbackfunc):
+        #声明回调函数，调用 更新显示
+        self.callbackfunc=callbackfunc
+    def on_recv_rsp(self, rsp_pb):
+        ret_code, data = super(RTDataTest, self).on_recv_rsp(rsp_pb)
+        if ret_code != RET_OK:
+            print("RTDataTest: error, msg: %s" % data)
+            return RET_ERROR, data
+        self.callbackfunc(data)
+        # 打印输出收到的信息
+        code = data['code'].iloc[0]
+        time = data['time'].iloc[0]
+        price = data['cur_price'].iloc[0]
+        #print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
+        return RET_OK, data
+
+#逐笔回调
+class TickerTest(TickerHandlerBase):
+    def __init__(self,callbackfunc):
+        #声明回调函数，调用 更新显示
+        self.callbackfunc=callbackfunc
+    def on_recv_rsp(self, rsp_pb):
+        ret_code, data = super(TickerTest,self).on_recv_rsp(rsp_pb)
+        if ret_code != RET_OK:
+            print("TickerTest: error, msg: %s" % data)
+            return RET_ERROR, data
+        self.callbackfunc(data)
+        # 打印输出收到的信息
+        code = data['code'].iloc[0]
+        time = data['time'].iloc[0]
+        price = data['price'].iloc[0]
+        print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
+        return RET_OK, data
+
+
 class TradeOrderTest(TradeOrderHandlerBase):
     def __init__(self,callbackfunc):
         #声明回调函数，调用 更新显示
         self.callbackfunc=callbackfunc
     """ order update push"""
     def on_recv_rsp(self, rsp_pb):
+        #print('接收订单执行后状态推送')
+
         ret, content = super(TradeOrderTest, self).on_recv_rsp(rsp_pb)
         if ret == RET_OK:
-            print("* TradeOrderTest content={}\n".format(content))
-            futuOrderID=content.order_id
-            self.callbackfunc(futuOrderID)
+            #print("* TradeOrderTest content={}\n".format(content))
+            #只有全部成交才调用回调函数
+            if content['order_status'].iloc[0]==OrderStatus.FILLED_ALL:
+                futuOrderID=content.order_id
+                self.callbackfunc(futuOrderID)
 
         return ret, content
 
@@ -104,7 +148,7 @@ class Zfutu():
         #指定交易环境
         ret, data = trd_ctx.position_list_query(trd_env=trd_env)
         if ret == RET_OK:
-            print(data)
+            #print(data)
             if data.shape[0] > 0:  # 如果持仓列表不为空
                 print(data['stock_name'][0])  # 获取持仓第一个股票名称
                 print(data['stock_name'].values.tolist())  # 转为 list
@@ -117,7 +161,7 @@ class Zfutu():
     def GetOrderList(self):
         ret, data = trd_ctx.order_list_query(trd_env=trd_env)
         if ret == RET_OK:
-            print(data)
+            #print(data)
             if data.shape[0] > 0:  # 如果订单列表不为空
                 print(data['order_id'][0])  # 获取未完成订单的第一个订单号
                 print(data['order_id'].values.tolist())  # 转为 list
@@ -154,12 +198,29 @@ class Zfutu():
         if ret == RET_OK:
             print('限价单下单成功')
 
+            #print(data)
+            #print(data['order_id'][0])  # 获取下单的订单号
+            orderID = data['order_id'].values.tolist()
+            #print(data['order_id'].values.tolist())  # 转为 list
+            # 返回list第一个
+            return 1,data['order_id'][0]
+        else:
+            print('place_order error: ', data)
+            return 0
+
+    #下市价单
+    def SetMarketOrder(self, code, price,qty, trd_side):
+        ret, data = trd_ctx.place_order( qty=qty, price=price,code=code, trd_side=trd_side, order_type=OrderType.MARKET,
+                                        trd_env=trd_env)
+        if ret == RET_OK:
+            print('市价单下单成功')
+
             print(data)
             print(data['order_id'][0])  # 获取下单的订单号
             orderID = data['order_id'].values.tolist()
             print(data['order_id'].values.tolist())  # 转为 list
             # 返回list第一个
-            return 1
+            return 1, data['order_id'][0]
         else:
             print('place_order error: ', data)
             return 0
@@ -217,8 +278,46 @@ class Zfutu():
         ###################################再恢复每日关注的股票#####################################
         self.AddFutuList(listname=watchList, list=codeListEveryDayWatch)
 
+    def TestSubscribe(self):
+        subscribeList = ['HK.00700','HK.09988','HK.01024']
 
+        # 订阅逐笔回调
+        ret, data = quote_ctx.subscribe(subscribeList, [SubType.TICKER], is_first_push=False)
+
+        if ret == RET_OK:
+            print(data)
+        else:
+            print('error:', data)
+
+        #查询订阅状态
+        ret, data = quote_ctx.query_subscription()
+        if ret == RET_OK:
+            print(data)
+        else:
+            print('error:', data)
+        # time.sleep(15)  # 设置脚本接收 OpenD 的推送持续时间为15秒
+        quote_ctx.close()  # 结束后记得关闭当条连接，防止连接条数用尽
+        #quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
+        quote_ctx1= OpenQuoteContext(host='127.0.0.1', port=11111)
+        subscribeList = ['HK.00700']
+        # 订阅逐笔回调
+        ret, data = quote_ctx1.subscribe(subscribeList, [SubType.TICKER], is_first_push=False)
+
+        if ret == RET_OK:
+            print(data)
+        else:
+            print('error:', data)
+
+        # 查询订阅状态
+        ret, data = quote_ctx1.query_subscription()
+        if ret == RET_OK:
+            print(data)
+        else:
+            print('error:', data)
 
 #zfutu=Zfutu()
 #zfutu.GetHoldStock()
+
+#zfutu=Zfutu()
+#zfutu.TestSubscribe()
 

@@ -56,6 +56,8 @@ class OdersList(Base):
     AUXPRICE= Column(Float)
     #下单时间
     SETDATE=Column(DateTime)
+    #触发时间
+    TRIGGERTIME=Column(DateTime)
     #执行动作时间
     OPERATIONDATE=Column(DateTime)
     #futu的订单ID

@@ -17,8 +17,8 @@
    <widget class="QPushButton" name="pushButtonStart">
     <property name="geometry">
      <rect>
-      <x>1330</x>
-      <y>300</y>
+      <x>1340</x>
+      <y>850</y>
       <width>75</width>
       <height>23</height>
      </rect>
@@ -32,8 +32,8 @@
      <rect>
       <x>1330</x>
       <y>50</y>
-      <width>311</width>
-      <height>241</height>
+      <width>541</width>
+      <height>791</height>
      </rect>
     </property>
    </widget>
@@ -101,6 +101,11 @@
     </column>
     <column>
      <property name="text">
+      <string>触发时间</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
       <string>执行时间</string>
      </property>
     </column>
@@ -156,7 +161,17 @@
     </column>
     <column>
      <property name="text">
-      <string>止损价格</string>
+      <string>触发价格</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>订单价格</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>订单数量</string>
      </property>
     </column>
     <column>
@@ -173,9 +188,9 @@
    <widget class="QGroupBox" name="groupBox">
     <property name="geometry">
      <rect>
-      <x>1330</x>
-      <y>370</y>
-      <width>411</width>
+      <x>1020</x>
+      <y>340</y>
+      <width>291</width>
       <height>391</height>
      </rect>
     </property>
@@ -267,10 +282,10 @@
       <string>下单</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="pushButton_3">
+    <widget class="QPushButton" name="pushButton_cancelOrder">
      <property name="geometry">
       <rect>
-       <x>110</x>
+       <x>180</x>
        <y>280</y>
        <width>75</width>
        <height>23</height>
@@ -333,6 +348,19 @@
       </property>
      </item>
     </widget>
+    <widget class="QPushButton" name="pushButton_quickSet">
+     <property name="geometry">
+      <rect>
+       <x>100</x>
+       <y>280</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>快速填充</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QLabel" name="label_5">
     <property name="geometry">
@@ -363,8 +391,8 @@
    <widget class="QLabel" name="label_7">
     <property name="geometry">
      <rect>
-      <x>1340</x>
-      <y>340</y>
+      <x>1030</x>
+      <y>320</y>
       <width>91</width>
       <height>16</height>
      </rect>
@@ -376,8 +404,8 @@
    <widget class="QPushButton" name="pushButtonStop">
     <property name="geometry">
      <rect>
-      <x>1410</x>
-      <y>300</y>
+      <x>1420</x>
+      <y>850</y>
       <width>75</width>
       <height>23</height>
      </rect>
