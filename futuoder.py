@@ -69,7 +69,7 @@ class StockQuoteTest(StockQuoteHandlerBase):
         code=data['code'].iloc[0]
         time=data['data_time'].iloc[0]
         price=data['last_price'].iloc[0]
-        print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
+        #print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
         return RET_OK, data
 
 #分时回调
@@ -96,6 +96,7 @@ class TickerTest(TickerHandlerBase):
         #声明回调函数，调用 更新显示
         self.callbackfunc=callbackfunc
     def on_recv_rsp(self, rsp_pb):
+        #print('接收回调')
         ret_code, data = super(TickerTest,self).on_recv_rsp(rsp_pb)
         if ret_code != RET_OK:
             print("TickerTest: error, msg: %s" % data)
@@ -105,7 +106,7 @@ class TickerTest(TickerHandlerBase):
         code = data['code'].iloc[0]
         time = data['time'].iloc[0]
         price = data['price'].iloc[0]
-        print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
+        #print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
         return RET_OK, data
 
 
@@ -123,7 +124,8 @@ class TradeOrderTest(TradeOrderHandlerBase):
             #只有全部成交才调用回调函数
             if content['order_status'].iloc[0]==OrderStatus.FILLED_ALL:
                 futuOrderID=content.order_id
-                self.callbackfunc(futuOrderID)
+                futuOrderTime=content.create_time
+                self.callbackfunc(futuOrderID,futuOrderTime)
 
         return ret, content
 
@@ -150,9 +152,11 @@ class Zfutu():
         if ret == RET_OK:
             #print(data)
             if data.shape[0] > 0:  # 如果持仓列表不为空
-                print(data['stock_name'][0])  # 获取持仓第一个股票名称
-                print(data['stock_name'].values.tolist())  # 转为 list
+                pass
+                #print(data['stock_name'][0])  # 获取持仓第一个股票名称
+                #print(data['stock_name'].values.tolist())  # 转为 list
         else:
+            pass
             print('position_list_query error: ', data)
         #trd_ctx.close()  # 关闭当条连接
         return data
@@ -163,9 +167,11 @@ class Zfutu():
         if ret == RET_OK:
             #print(data)
             if data.shape[0] > 0:  # 如果订单列表不为空
-                print(data['order_id'][0])  # 获取未完成订单的第一个订单号
-                print(data['order_id'].values.tolist())  # 转为 list
+                pass
+                #print(data['order_id'][0])  # 获取未完成订单的第一个订单号
+                #print(data['order_id'].values.tolist())  # 转为 list
         else:
+            pass
             print('order_list_query error: ', data)
         #trd_ctx.close()
         return data
@@ -180,7 +186,7 @@ class Zfutu():
 
     #下单,
     def SetLimitAuxOrder(self,code,price,qty,trd_side,order_type,aux_price):
-        ret, data = trd_ctx.place_order(price=price, qty=qty, code=code, trd_side=trd_side,order_type=order_type,aux_price=aux_price,trd_env=trd_env)
+        ret, data = trd_ctx.place_order(price=price, qty=qty, code=code, trd_side=trd_side,time_in_force=TimeInForce.DAY,order_type=order_type,aux_price=aux_price,trd_env=trd_env)
         if ret == RET_OK:
             print('限价单下单成功')
 

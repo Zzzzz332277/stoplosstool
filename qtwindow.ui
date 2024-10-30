@@ -27,13 +27,13 @@
      <string>START</string>
     </property>
    </widget>
-   <widget class="QTextBrowser" name="textBrowser">
+   <widget class="QTextBrowser" name="textBrowser_message">
     <property name="geometry">
      <rect>
       <x>1330</x>
       <y>50</y>
       <width>541</width>
-      <height>791</height>
+      <height>241</height>
      </rect>
     </property>
    </widget>
@@ -412,6 +412,16 @@
     </property>
     <property name="text">
      <string>STOP</string>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="textBrowser_ticker">
+    <property name="geometry">
+     <rect>
+      <x>1330</x>
+      <y>310</y>
+      <width>541</width>
+      <height>241</height>
+     </rect>
     </property>
    </widget>
   </widget>

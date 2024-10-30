@@ -5,10 +5,10 @@ import multiprocessing
 import time
 import os
 import matplotlib.pyplot as plt
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidget, QGraphicsWidget, QGraphicsView, QGraphicsScene, \
-    QMenu
+    QMenu, QMessageBox
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -22,6 +22,168 @@ from futu import *
 
 import futuoder
 import stoploss
+
+#定义执行主逻辑的线程
+class MyThread(QThread):
+    getHoldSignal = pyqtSignal(pd.DataFrame)  # 获取持仓的信号
+    getOrderSignal = pyqtSignal(pd.DataFrame)  # 获取订单的信号
+    updatePriceSignal= pyqtSignal(int,float)
+    updateHoldSignal= pyqtSignal(list)
+    updateOrderSignal= pyqtSignal(pd.DataFrame)
+    tickerPriceSignal=pyqtSignal(str)
+    #弹窗提示
+    messageDialogSignal=pyqtSignal(str)
+    #线程开始
+    def run(self):
+        # 在需要的地方发出信号
+        self.InitProgram()
+
+    def InitProgram(self):
+        #声明一个stoplosstool类为成员，所有止损相关操作在类中进行，更好封装
+        self.stp=stoploss.StopLossTool()
+        self.stp.InitProgram()
+
+        self.UpdateOrderTable()
+        self.UpdateHoldTable()
+
+        #报价推送以及订单状态回调
+        self.SubscribeRealTimePrice()
+        self.SetOrderStateCB()
+        #time.sleep(35)  # 设置脚本接收 OpenD 的推送持续时间为15秒
+        #while 1 :
+        #    pass
+
+    def GetHold(self):
+
+        futu = futuoder.Zfutu()
+        holdData = futu.GetHoldStock()
+        #发射信号
+        self.getHoldSignal.emit(holdData)
+
+    def GetOrder(self):
+        futu = futuoder.Zfutu()
+        OrderData = futu.GetOrderList()
+        self.getOrderSignal.emit(OrderData)
+
+    def UpdateHoldTable(self):
+        #print('更新持仓表格')
+        holdStockList=self.stp.holdStockList
+        self.updateHoldSignal.emit(holdStockList)
+
+    def UpdateOrderTable(self):
+        #print('更新订单表格')
+        orderListDF=self.stp.orderListDataframe
+        #############需要线程分隔的地方#################
+        self.updateOrderSignal.emit(orderListDF)
+
+
+    def UpdatePrice(self,pos,price):
+        #print('更新价格')
+        self.updatePriceSignal.emit(pos,price)
+
+    # 通过订阅获取实时报价并显示
+    def SubscribeRealTimePrice(self):
+        holdStockList = self.stp.holdStockList
+        # 没有持仓，list为0的情况，直接返回
+        if len(holdStockList) == 0:
+            return
+        # 获取订阅名单,从类列表里获取
+        subscribeList = []
+        for i in range(0, len(holdStockList)):
+            subscribeList.append(holdStockList[i].code)
+        # 报价回调
+        # handler = futuoder.StockQuoteTest(self.RenewRealTimePrice)
+        # 分时回调
+        # handler = futuoder.RTDataTest(self.RenewRealTimePrice)
+        # 逐步回调
+        handler = futuoder.TickerTest(self.RenewRealTimePrice)
+
+        futuoder.quote_ctx.set_handler(handler)
+        # 设置实时报价回调
+        # ret, data = futuoder.quote_ctx.subscribe(subscribeList, [SubType.QUOTE])
+        # 订阅分时回调
+        # ret, data = futuoder.quote_ctx.subscribe(subscribeList, [SubType.RT_DATA])
+        # 订阅逐笔回调
+        ret, data = futuoder.quote_ctx.subscribe(subscribeList, [SubType.TICKER], is_first_push=False)
+
+        if ret == RET_OK:
+            print(data)
+        else:
+            print('error:', data)
+        # time.sleep(15)  # 设置脚本接收 OpenD 的推送持续时间为15秒
+
+    # 接收到推送的回调处理逻辑
+    def RenewRealTimePrice(self, pushdata):
+        ''''
+        print("更新价格进程编号:", os.getpid())
+        print("更新价格进程编号:", multiprocessing.current_process())
+        print("更新价格父进程编号:", os.getppid())
+        print("当前线程信息", threading.current_thread())
+        print("当前所有线程信息", threading.enumerate())  # 返回值类型为数组
+        '''
+        holdCodeList = []
+        for i in range(0, len(self.stp.holdStockList)):
+            holdCodeList.append(self.stp.holdStockList[i].code)
+
+        code = pushdata['code'].iloc[0]
+        time = pushdata['time'].iloc[0]
+        # 找到在dataframe中对应位置
+        # 判断该code是否存在
+        if code in holdCodeList:
+            pos = holdCodeList.index(code)
+        else:
+            return
+        # 实时
+        # lastPrice = pushdata['last_price'].iloc[0]
+        # 分时
+        # lastPrice=pushdata['cur_price'].iloc[0]
+        # 逐笔报价推送
+        lastPrice = pushdata['price'].iloc[0]
+        tickerPriceSignal=f"报价推送：{code} 时间：{time} 价格：{lastPrice}"
+        self.tickerPriceSignal.emit(tickerPriceSignal)
+
+        # print(f"报价推送：{code} 时间：{time} 价格：{price}")  # StockQuoteTest 自己的处理逻辑
+        # table.setItem(pos, 3, QtWidgets.QTableWidgetItem(str(lastPrice)))
+        self.UpdatePrice(pos, lastPrice)
+
+        # 调用止损判断程序：
+        result = self.stp.StopLossProcess(pos, pushdata)
+        if result == 'NeedRefresh':
+            self.RefreshProgram()
+
+        if result == 'HoldChange,Submited':
+            self.messageDialogSignal.emit(f'{code}订单提交')
+            self.RebootProgram()
+
+        if result == 'Triggered':
+            self.messageDialogSignal.emit(f'{code}止损触发')
+            self.RefreshProgram()
+        # 设置订单执行状态回调函数
+
+    def SetOrderStateCB(self):
+        futuoder.trd_ctx.set_handler(futuoder.TradeOrderTest(self.RenewOrderState))
+
+    # 根据富途回调函数推送修改订单状态
+    def RenewOrderState(self, orderID,orderTime):
+        # print('接受订单执行回调推送')
+        result = self.stp.RenewState(orderID,orderTime)
+        if result == 'NeedRefresh':
+            self.RefreshProgram()
+
+    def RefreshProgram(self):
+        #############需要线程分隔的地方#################发射信号
+
+        self.UpdateOrderTable()
+        self.UpdateHoldTable()
+
+        # 持仓变动后，重新订阅
+
+    def RebootProgram(self):
+        self.UpdateOrderTable()
+        self.UpdateHoldTable()
+        # 重新订阅推送
+        self.SubscribeRealTimePrice()
+
 
 class Signal(QObject):
     text_update = pyqtSignal(str)
@@ -47,7 +209,7 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         #显示K线的逻辑
         #self.showCandle.clicked.connect(self.ShowCandle)
         #传递table值进去
-        self.pushButtonStart.clicked.connect(self.InitProgram)
+        self.pushButtonStart.clicked.connect(self.StartMyThread)
         self.pushButton_cancelOrder.clicked.connect(self.CancelOrder)
         self.pushButton_setorder.clicked.connect(self.SetOrderMainWindow)
         self.pushButton_quickSet.clicked.connect(self.quickSet)
@@ -61,31 +223,39 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         #self.pushButton.clicked.connect(self.UpdateTable)
         sys.stdout = Signal()
 
-        sys.stdout.text_update.connect(self.updatetext)
+        sys.stdout.text_update.connect(self.updatetext_message)
 
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-    def updatetext(self, text):
+    def StartMyThread(self):
+        self.myThread=MyThread()
+        #连接信号与槽函数
+        #self.myThread.getHoldSignal.connect(self.GetHoldUI)  # 连接信号和槽函数
+        #self.myThread.getOrderSignal.connect(self.GetOrderUI)  # 连接信号和槽函数
+        self.myThread.updateHoldSignal.connect(self.UpdateHoldTableUI)
+        self.myThread.updateOrderSignal.connect(self.UpdateOrderTableUI)
+        self.myThread.updatePriceSignal.connect(self.UpdatePriceUI)
+        self.myThread.tickerPriceSignal.connect(self.updatetext_ticker)
+        self.myThread.messageDialogSignal.connect(self.showMessage)
+
+        #开始主程序线程
+        self.myThread.start()
+
+    #消息窗口
+    def updatetext_message(self, text):
         """
             更新textBrowser
         """
-        cursor = self.textBrowser.textCursor()
+        cursor = self.textBrowser_message.textCursor()
         cursor.movePosition(QTextCursor.End)
-        self.textBrowser.append(text)
-        self.textBrowser.setTextCursor(cursor)
-        self.textBrowser.ensureCursorVisible()
+        #self.textBrowser_message.append(text)
+        self.textBrowser_message.insertPlainText(text)
+        self.textBrowser_message.setTextCursor(cursor)
+        self.textBrowser_message.ensureCursorVisible()
     #def StartAnalyze(self):
     #    zmain.ZtradeUS()
-
-
-
-
-    def GetHold(self):
-        """
-            更新textBrowser
-        """
-        futu=futuoder.Zfutu()
-        holdData=futu.GetHoldStock()
+    '''
+    def GetHoldUI(self,holdData):
         table=self.tableWidget_hold
         for i in range(0,holdData.shape[0]):
             #持仓信息
@@ -99,15 +269,7 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             table.setItem(row_count - 1, 1, QtWidgets.QTableWidgetItem(str(name)))
             table.setItem(row_count - 1, 2, QtWidgets.QTableWidgetItem(str(quanty)))
 
-
-
-
-    def GetOrder(self):
-        """
-            更新textBrowser
-        """
-        futu=futuoder.Zfutu()
-        OrderData=futu.GetOrderList()
+    def GetOrderUI(self,OrderData):
         table=self.tableWidget_order
         for i in range(0,OrderData.shape[0]):
             #持仓信息
@@ -120,7 +282,6 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             bidPrice=OrderData['price'].iloc[i]
             auxPrice=OrderData['aux_price'].iloc[i]
 
-
             row_count = table.rowCount()  # 返回当前行数(尾部)
             table.insertRow(row_count)  # 尾部插入一行
             table.setItem(row_count - 1, 0, QtWidgets.QTableWidgetItem(str(code)))
@@ -131,30 +292,17 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             table.setItem(row_count - 1, 5, QtWidgets.QTableWidgetItem(str(quanty)))
             table.setItem(row_count - 1, 6, QtWidgets.QTableWidgetItem(str(bidPrice)))
             table.setItem(row_count - 1, 7, QtWidgets.QTableWidgetItem(str(auxPrice)))
-
-            '''
-            table.setItem(row_count - 1, 1, QtWidgets.QTableWidgetItem(str(code)))
-            table.setItem(row_count - 1, 2, QtWidgets.QTableWidgetItem(str(close)))
-            table.setItem(row_count - 1, 3, QtWidgets.QTableWidgetItem(changePctStr))
-            table.setItem(row_count - 1, 4, QtWidgets.QTableWidgetItem(str(volume)))
-            table.setItem(row_count - 1, 5, QtWidgets.QTableWidgetItem(str(vol60)))
-            table.setItem(row_count - 1, 6, QtWidgets.QTableWidgetItem(CorrelationUS))
-            '''
-
-    def InitProgram(self):
-        #声明一个stoplosstool类为成员，所有止损相关操作在类中进行，更好封装
-        self.stp=stoploss.StopLossTool()
-        self.stp.InitProgram()
-
-        self.UpdateOrderTable()
-        self.UpdateHoldTable()
-
-        #报价推送以及订单状态回调
-        self.SubscribeRealTimePrice()
-        self.SetOrderStateCB()
-        #time.sleep(35)  # 设置脚本接收 OpenD 的推送持续时间为15秒
-        #while 1 :
-        #    pass
+    '''
+    #报价窗口
+    def updatetext_ticker(self, text):
+        """
+            更新textBrowser
+        """
+        cursor = self.textBrowser_ticker.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        self.textBrowser_ticker.append(text)
+        self.textBrowser_ticker.setTextCursor(cursor)
+        self.textBrowser_ticker.ensureCursorVisible()
 
     def SetOrderMainWindow(self):
         code=self.textEdit_code.toPlainText()
@@ -171,11 +319,14 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         price=float(self.textEdit_bidprice.toPlainText())
         order_type=OrderType.STOP_LIMIT
         #ordertype写死
+
+        #self.myThread.messageSignal.emit('执行下单')
+
         print('执行下单')
-        self.stp.SetOrderStopLoss(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
+        self.myThread.stp.SetOrderStopLoss(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
         #更新订单的联系
-        self.stp.RefreshProgram()
-        self.RefreshProgram()
+        self.myThread.stp.RefreshProgram()
+        self.myThread.RefreshProgram()
 
     def CancelOrder(self):
         selectedRow= self.tableWidget_order.selectedItems()[0].row()             #获取选中文本所在的行
@@ -183,10 +334,11 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         orderID=self.tableWidget_order.item(selectedRow, 0).text()
         #转化为数字
         orderID=int(orderID)
-        self.stp.CancleOrder(orderID)
-        self.RefreshProgram()
+        self.myThread.stp.CancleOrder(orderID)
+        self.myThread.RefreshProgram()
 
     def RefreshProgram(self):
+        #############需要线程分隔的地方#################发射信号
         self.UpdateOrderTable()
         self.UpdateHoldTable()
 
@@ -197,8 +349,8 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         # 重新订阅推送
         self.SubscribeRealTimePrice()
 
-    def UpdateOrderTable(self):
-        orderListDF=self.stp.orderListDataframe
+    def UpdateOrderTableUI(self,orderListDF):
+        #print('更新订单表格')
         table=self.tableWidget_order
         table.setRowCount(0)
 
@@ -234,8 +386,8 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             table.setItem(row_count, 11, QtWidgets.QTableWidgetItem(str(operationDate)))
             table.setItem(row_count, 12, QtWidgets.QTableWidgetItem(str(futuOrderID)))
 
-    def UpdateHoldTable(self):
-        holdStockList=self.stp.holdStockList
+    def UpdateHoldTableUI(self,holdStockList):
+        #print('更新持仓表格')
         table=self.tableWidget_hold
         table.setRowCount(0)
 
@@ -269,7 +421,10 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
 
             table.setItem(row_count , 10, QtWidgets.QTableWidgetItem(str(state)))
 
-    def UpdatePrice(self,pos,price):
+    #############需要线程分隔的地方#################发射信号
+
+    def UpdatePriceUI(self,pos,price):
+        #print('更新价格')
         #需要全部更新一遍
         table = self.tableWidget_hold
         #获取行数
@@ -335,88 +490,9 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
                 #空单对应买入止损
                 self.DirectionSelction.setCurrentIndex(2)
 
-
-    #通过订阅获取实时报价并显示
-    def SubscribeRealTimePrice(self):
-        holdStockList=self.stp.holdStockList
-        #没有持仓，list为0的情况，直接返回
-        if len(holdStockList)==0:
-            return
-        #获取订阅名单,从类列表里获取
-        subscribeList=[]
-        for i in range(0,len(holdStockList)):
-            subscribeList.append(holdStockList[i].code)
-        #报价回调
-        #handler = futuoder.StockQuoteTest(self.RenewRealTimePrice)
-        #分时回调
-        #handler = futuoder.RTDataTest(self.RenewRealTimePrice)
-        #逐步回调
-        handler = futuoder.TickerTest(self.RenewRealTimePrice)
-
-        futuoder.quote_ctx.set_handler(handler)
-        # 设置实时报价回调
-        #ret, data = futuoder.quote_ctx.subscribe(subscribeList, [SubType.QUOTE])
-        #订阅分时回调
-        #ret, data = futuoder.quote_ctx.subscribe(subscribeList, [SubType.RT_DATA])
-        #订阅逐笔回调
-        ret, data = futuoder.quote_ctx.subscribe(subscribeList,[SubType.TICKER],is_first_push=False)
-
-        if ret == RET_OK:
-            print(data)
-        else:
-            print('error:', data)
-        #time.sleep(15)  # 设置脚本接收 OpenD 的推送持续时间为15秒
-
-    #接收到推送的回调处理逻辑
-    def RenewRealTimePrice(self,pushdata):
-        ''''
-        print("更新价格进程编号:", os.getpid())
-        print("更新价格进程编号:", multiprocessing.current_process())
-        print("更新价格父进程编号:", os.getppid())
-        print("当前线程信息", threading.current_thread())
-        print("当前所有线程信息", threading.enumerate())  # 返回值类型为数组
-        '''
-        table = self.tableWidget_hold
-        holdCodeList = []
-        for i in range(0, len(self.stp.holdStockList)):
-            holdCodeList.append(self.stp.holdStockList[i].code)
-
-        code= pushdata['code'].iloc[0]
-        #找到在dataframe中对应位置
-        #判断该code是否存在
-        if code in holdCodeList:
-            pos=holdCodeList.index(code)
-        else:
-            return
-        #实时
-        #lastPrice = pushdata['last_price'].iloc[0]
-        #分时
-        #lastPrice=pushdata['cur_price'].iloc[0]
-        #逐笔
-        lastPrice=pushdata['price'].iloc[0]
-
-        #table.setItem(pos, 3, QtWidgets.QTableWidgetItem(str(lastPrice)))
-        self.UpdatePrice(pos,lastPrice)
-
-        #调用止损判断程序：
-        result=self.stp.StopLossProcess(pos,pushdata)
-        if result=='NeedRefresh':
-            self.RefreshProgram()
-
-        if result=='HoldChange':
-            self.RebootProgram()
-
-
-    #根据富途回调函数推送修改订单状态
-    def RenewOrderState(self, orderID):
-        #print('接受订单执行回调推送')
-        result = self.stp.RenewState(orderID)
-        if result == 'NeedRefresh':
-            self.RefreshProgram()
-
-    #设置订单执行状态回调函数
-    def SetOrderStateCB(self):
-        futuoder.trd_ctx.set_handler(futuoder.TradeOrderTest(self.RenewOrderState))
+    #弹窗消息提示
+    def showMessage(self,message):
+        QMessageBox.information(self,'消息提示',message,QMessageBox.Yes)
 
 
 if __name__ == "__main__":

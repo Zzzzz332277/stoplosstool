@@ -80,6 +80,8 @@ class StopLossTool():
 
     #根据富途持仓和订单dataframe联系，包括是否有SLT订单，以及SLT订单具体信息
     def ConnectHoldAndOrder(self):
+        print('连接持仓与订单')
+
         '''
         print('绑定持仓与订单列表')
         print("获取持仓进程编号:", os.getpid())
@@ -118,8 +120,6 @@ class StopLossTool():
             elif qty<0:
                 orderDirection = 'Short'
 
-
-
             stopLossDirection = ''
             stopLossPriceAux = 0
             stopLossPriceBid=0
@@ -142,9 +142,9 @@ class StopLossTool():
             self.holdStockList[holdStockListIndex] = holdStockBuff
             holdStockListIndex = holdStockListIndex + 1
 
-
     #根据推送的位置，获取代码，进行订单判断
     def StopLossProcess(self,pos,pushdata):
+        #print('止损判断过程')
         '''
         print("止损过程进程编号:", os.getpid())
         print("止损过程进程名称:", multiprocessing.current_process())
@@ -154,7 +154,7 @@ class StopLossTool():
         '''
         code=self.holdStockList[pos].code
         # 时间阈值，默认5秒
-        timeThreshold = timedelta(seconds=5)
+        timeThreshold = timedelta(seconds=10)
         #lastPrice = pushdata['last_price'].iloc[0]
         lastPrice=pushdata['price'].iloc[0]
 
@@ -189,14 +189,17 @@ class StopLossTool():
                     self.ModifyOrderState(id=orderID, state='Triggered')
                     self.RefreshProgram()
                     # 修改触发时间
-                    return 'NeedRefresh'
+                    #return 'NeedRefresh'
+                    return 'Triggered'
+
             elif self.holdStockList[pos].orderDirection == 'Short':
                 # 做空时，涨破止损价,触发状态
                 if self.holdStockList[pos].stopLossPriceAux < lastPrice:
                     self.ModifyTriggerTime(orderID, lastTime)
                     self.ModifyOrderState(id=orderID, state='Triggered')
                     self.RefreshProgram()
-                    return 'NeedRefresh'
+                    #return 'NeedRefresh'
+                    return 'Triggered'
 
         elif self.holdStockList[pos].stopLossState == 'Triggered':
             if self.holdStockList[pos].orderDirection == 'Long':
@@ -212,7 +215,7 @@ class StopLossTool():
                         self.RefreshProgram()
                         #flag
                         self.dataUpdateFlag=1
-                        return 'HoldChange'
+                        return 'HoldChange,Submited'
                         # 下订单，执行逻辑
                 else:
                     # 新的价格不满足止损条件，修改触发状态，改为未触发，时间清0
@@ -236,7 +239,9 @@ class StopLossTool():
                         self.RefreshProgram()
                         self.dataUpdateFlag=1
 
-                        return 'HoldChange'
+                        #return 'HoldChange'
+                        return 'HoldChange,Submited'
+
                         # 下订单，执行逻辑
                 else:
                     # 新的价格不满足止损条件，修改触发状态，改为未触发，时间清0
@@ -246,7 +251,7 @@ class StopLossTool():
                     return 'NeedRefresh'
 
     #根据对应的富途订单ID，修改订单状态
-    def RenewState(self,futuorderID):
+    def RenewState(self,futuorderID,futuorderTime):
 
         #print("订单回调进程编号:", os.getpid())
         #print("订单回调进程名称:", multiprocessing.current_process())
@@ -265,6 +270,7 @@ class StopLossTool():
         #根据位置找出程序中的ID
         orderID = self.orderListDataframe['ID'].iloc[pos]
         self.ModifyOrderState(orderID, 'Executed')
+        self.ModifyOrderTime(orderID, futuorderTime[0])
         self.RefreshProgram()
         #FLAG置1
         self.dataUpdateFlag = 1
@@ -392,6 +398,25 @@ class StopLossTool():
 
         #with database.con as conn:
         #database.session.execute(sql)
+    # 修改数据库中订单状态
+    def ModifyOrderTime(self, id, time):
+        # print("更新订单状态进程编号:", os.getpid())
+        # print("更新订单状态进程编号:", multiprocessing.current_process())
+        # print("更新订单状态进程编号:", os.getppid())
+        # print("当前线程信息", threading.current_thread())
+        # print("当前所有线程信息", threading.enumerate())  # 返回值类型为数组
+        # print('更新订单状态')
+        # 修改数据
+        # 锁定线程
+        print('更新订单状态')
+        order = database.session.query(database.OdersList).filter_by(ID=id).first()
+        if order:
+            order.OPERATIONDATE = time
+            database.session.commit()
+            print("updated success.")
+            print(order.ID, order.OPERATIONDATE)
+        else:
+            print("not found.")
 
     #修改订单里面的futuID
     def ModifyFutuOrderID(self, id, futuoderID):
