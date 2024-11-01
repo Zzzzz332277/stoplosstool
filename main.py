@@ -214,6 +214,11 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_setorder.clicked.connect(self.SetOrderMainWindow)
         self.pushButton_quickSet.clicked.connect(self.quickSet)
 
+        #绑定修改订单按钮
+        self.pushButton_quickSet_modify.clicked.connect(self.quickSetModify)
+        self.pushButton_setorder_modify.clicked.connect(self.ModifyOrderMainWindow)
+
+
         #self.pushButtonGetOrder.clicked.connect(self.GetOrder)
         #self.tableWidget_hold.setContextMenuPolicy(Qt.DefaultContextMenu)
 
@@ -324,6 +329,33 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
 
         print('执行下单')
         self.myThread.stp.SetOrderStopLoss(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
+        #更新订单的联系
+        self.myThread.stp.RefreshProgram()
+        self.myThread.RefreshProgram()
+    #修改订单
+    def ModifyOrderMainWindow(self):
+
+
+        id=self.textEdit_id_modify.toPlainText()
+        code=self.textEdit_code_modify.toPlainText()
+        qty=float(self.textEdit_qty_modify.toPlainText())
+        auxPrice=float(self.textEdit_auxprice_modify.toPlainText())
+        bidPrice=float(self.textEdit_bidprice_modify.toPlainText())
+
+        #根据下拉菜单判断方向
+        side=self.DirectionSelction_modify.currentText()
+        if side== 'BUY':
+            trd_side=TrdSide.BUY
+        else:
+            trd_side=TrdSide.SELL
+
+        order_type=OrderType.STOP_LIMIT
+        #ordertype写死
+
+        #self.myThread.messageSignal.emit('执行下单')
+
+        print('执行修改')
+        self.myThread.stp.ModifyOrderStopLoss(id=id,code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=auxPrice,price=bidPrice)
         #更新订单的联系
         self.myThread.stp.RefreshProgram()
         self.myThread.RefreshProgram()
@@ -489,6 +521,36 @@ class MyMainWindow(QMainWindow, Ui_MainWindow):
             elif direction == 'Short':
                 #空单对应买入止损
                 self.DirectionSelction.setCurrentIndex(2)
+
+    #修改订单快速填充
+    def quickSetModify(self):
+        table = self.tableWidget_order
+        #判断没有选中的情况
+        if len(table.selectedItems())==0:
+            return
+        else:
+            row=table.selectedItems()[0].row()
+            id = table.item(row, 0).text()
+            code = table.item(row, 1).text()
+            qty = table.item(row, 6).text()
+            direction = table.item(row, 3).text()
+            auxPrice=table.item(row, 7).text()
+            bidPrice=table.item(row, 8).text()
+
+            self.textEdit_id_modify.setPlainText(id)
+            self.textEdit_code_modify.setPlainText(code)
+            self.textEdit_qty_modify.setPlainText(qty)
+            self.textEdit_auxprice_modify.setPlainText(auxPrice)
+            self.textEdit_bidprice_modify.setPlainText(bidPrice)
+
+
+
+            if direction == 'Long':
+                #多单对应卖出止损
+                self.DirectionSelction_modify.setCurrentIndex(1)
+            elif direction == 'Short':
+                #空单对应买入止损
+                self.DirectionSelction_modify.setCurrentIndex(2)
 
     #弹窗消息提示
     def showMessage(self,message):

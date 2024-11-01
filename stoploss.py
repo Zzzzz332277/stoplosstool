@@ -282,6 +282,12 @@ class StopLossTool():
         self.SaveNewOrder(code=code,qty=qty,trd_side=trd_side,order_type=order_type,aux_price=aux_price,price=price)
         self.ReadOrderFromDB()
 
+    #修改数据库订单
+    def ModifyOrderStopLoss(self,id,code,qty,trd_side,order_type,aux_price,price):
+        self.ModifyOrder(id=id,code=code, qty=qty, trd_side=trd_side, order_type=order_type, aux_price=aux_price,
+                          price=price)
+        self.ReadOrderFromDB()
+
     #从数据库中获取订单df信息
     def ReadOrderFromDB(self):
         # 按状态获取
@@ -372,6 +378,37 @@ class StopLossTool():
                                                          aux_price, setDateTime, setDateTime, orderID]
         orderDataframe.to_sql(name='orderslist', con=database.engine, if_exists="append", index=False)
         database.session.commit()
+
+    # 修改数据库中订单信息
+    def ModifyOrder(self,id,code,qty,trd_side,order_type,aux_price,price):
+        # print("更新订单状态进程编号:", os.getpid())
+        # print("更新订单状态进程编号:", multiprocessing.current_process())
+        # print("更新订单状态进程编号:", os.getppid())
+        # print("当前线程信息", threading.current_thread())
+        # print("当前所有线程信息", threading.enumerate())  # 返回值类型为数组
+        # print('更新订单状态')
+        # 修改数据
+        # 锁定线程
+        print('修改订单')
+        order = database.session.query(database.OdersList).filter_by(ID=id).first()
+        if order:
+            #order.STATE = state
+            order.CODE=code
+            order.QUANTITY=qty
+            order.AUXPRICE=aux_price
+            order.BIDPRICE=price
+            order.DIRECTION=trd_side
+            order.TYPE=order_type
+            database.session.commit()
+            print("updated success.")
+            print(order.ID, order.STATE)
+        else:
+            print("not found.")
+
+        # sql = text(f'insert into orderslist (CODE,DIRECTION,TYPE,STATE,QUANTITY,BIDPRICE,AUXPRICE,SETDATE,ORDERID) values ("{code}","{trd_side}","{order_type}","{state}","{qty}","{price}","{aux_price}","{setDateTime}","{orderID}")')
+
+        # with database.con as conn:
+        # database.session.execute(sql)
 
     #修改数据库中订单状态
     def ModifyOrderState(self,id,state):
