@@ -6,10 +6,10 @@ from futu import *
 
 #########################################################
 #参数设置，模拟与真实，交易账户：
-trd_env=TrdEnv.SIMULATE
-#trd_env=TrdEnv.REAL
-trdmarket=TrdMarket.HK
-#trdmarket=TrdMarket.US
+#trd_env=TrdEnv.SIMULATE
+trd_env=TrdEnv.REAL
+#trdmarket=TrdMarket.HK
+trdmarket=TrdMarket.US
 
 ########################################################
 

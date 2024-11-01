@@ -318,9 +318,9 @@ class StopLossTool():
             trd_side = TrdSide.BUY
 
         #调用富途接口下单
-        result,futuOrderID=self.zfutu.SetLimitOrder(code=code,qty=qty,price=price,trd_side=trd_side,order_type=OrderType.NORMAL)
+        #result,futuOrderID=self.zfutu.SetLimitOrder(code=code,qty=qty,price=price,trd_side=trd_side,order_type=OrderType.NORMAL)
         #市价单
-        #result,futuOrderID=self.zfutu.SetMarketOrder(code=code,price=price,qty=qty,trd_side=trd_side)
+        result,futuOrderID=self.zfutu.SetMarketOrder(code=code,price=price,qty=qty,trd_side=trd_side)
 
         if result:
             print(f'执行下单成功，返回富途ID：{futuOrderID}')
